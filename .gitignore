@@ -1,0 +1,8 @@
+# Backups and temp files
+backup/
+backups/
+_check.js
+_check_balance.py
+extract.py
+scenario_review.txt
+.claude/
