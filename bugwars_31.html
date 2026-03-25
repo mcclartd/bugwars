@@ -939,7 +939,12 @@ function confirmEmpiric(){
   const m=S.streak>=5?3:S.streak>=3?2:1;pts*=m;S.score+=pts;
   S.selectedEmpiric={keys:pk,names:pn,isCombo:isTC};S.empiricResult={result:res,points:pts};battleFlashT=30;
   if(pts>0)addFloat('+'+(isTC?'⚡ ':'')+pts+(m>1?' x'+m:''),W/2,H/3,res==='best'?'#44ffaa':'#ffdd44',true,60);
-  pauseDelay(800,()=>{S.battlePhase=1;narOpts=getNarrowOpts(S.battleData.scenario);battleFlash=''});
+  if(S.level===0){
+    // Outpatient: skip narrowing — go straight to teaching card
+    pauseDelay(800,()=>{S.battlePhase=2;S.bugsDefeated++;battleFlash='';selectedNarIdx=-1});
+  }else{
+    pauseDelay(800,()=>{S.battlePhase=1;narOpts=getNarrowOpts(S.battleData.scenario);battleFlash=''});
+  }
 }
 
 function getNarrowOpts(sc){const o=sc.narrowOptions.map(k=>({key:k,name:ABX[k].name}));for(let i=o.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[o[i],o[j]]=[o[j],o[i]]}return o}
@@ -982,6 +987,456 @@ const LEVEL_BG=['#040a04','#030810','#040a18','#080410','#100204','#030408','#03
 function drawLevelBG(lvIdx){
   ctx.fillStyle=LEVEL_BG[lvIdx]||'#0a0a1a';
   ctx.fillRect(0,0,W,H);
+}
+
+// === HELPER: ambient floating particles (seamless) ===
+function _bgParticles(count,color,t,yMin,yRange){
+  ctx.fillStyle=color;
+  for(let i=0;i<count;i++){const dx=(i*137+t*12)%W;const dy=yMin+(Math.sin(t*0.5+i*2.1)*yRange);ctx.beginPath();ctx.arc(dx,dy,1.5+Math.sin(t+i)*0.5,0,Math.PI*2);ctx.fill()}
+}
+// === HELPER: seamless tiling loop — returns screen-x positions for a repeating element ===
+function _tilePositions(spacing,parallax,margin){
+  const off=parallax%spacing;const out=[];
+  for(let x=-spacing-margin;x<W+spacing+margin;x+=spacing){const sx=x-off;if(sx>-margin&&sx<W+margin)out.push(sx)}
+  return out;
+}
+
+// ========== LEVEL 0: OUTPATIENT CLINIC ==========
+function drawBG_Outpatient(){
+  const t=Date.now()/1000,px1=cam.x*0.05,px2=cam.x*0.15,px3=cam.x*0.3;
+  // Dusk sky gradient
+  const g=ctx.createLinearGradient(0,0,0,H*0.7);
+  g.addColorStop(0,'#0a1a12');g.addColorStop(0.3,'#0d2218');g.addColorStop(0.5,'#122a18');g.addColorStop(1,'#040a04');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // FAR: Distant treeline (slowest parallax)
+  ctx.fillStyle='#061a0a';
+  for(const tx of _tilePositions(60,px1,40)){ctx.beginPath();ctx.arc(tx+30,H*0.48,25+Math.sin(tx*0.02)*10,Math.PI,0);ctx.fill()}
+  // FAR: Faint hills
+  ctx.fillStyle='#071c0c';
+  for(const tx of _tilePositions(120,px1*0.7,60)){ctx.beginPath();ctx.arc(tx+60,H*0.52,40+Math.sin(tx*0.01)*15,Math.PI,0);ctx.fill()}
+  // MID: Building facade — continuous wall with repeating windows, doors, signs
+  const wallY=H*0.28,wallH=H*0.34;
+  ctx.fillStyle='#0c1e10';ctx.fillRect(0,wallY,W,wallH);
+  // Roof line (continuous)
+  ctx.fillStyle='#1a3a22';ctx.fillRect(0,wallY-4,W,6);ctx.fillStyle='#2a5a32';ctx.fillRect(0,wallY-6,W,3);
+  // Repeating clinic sign every 200px
+  for(const sx of _tilePositions(200,px2,100)){
+    const sW=80;ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(sx+60,wallY-22,sW,18);
+    ctx.strokeStyle='#44cc66';ctx.lineWidth=1.5;ctx.strokeRect(sx+60,wallY-22,sW,18);
+    dT('CLINIC',sx+100,wallY-17,6,'#66ee88','center');
+    // Green cross
+    ctx.fillStyle='#44cc66';ctx.fillRect(sx+66,wallY-19,3,11);ctx.fillRect(sx+63,wallY-15,9,3);
+  }
+  // Repeating windows (two rows)
+  for(const wx of _tilePositions(36,px2,30)){
+    ctx.fillStyle='#0a1a0e';ctx.fillRect(wx+4,wallY+10,18,14);
+    const fl=0.6+Math.sin(t*1.2+wx*0.1)*0.15;
+    ctx.fillStyle=`rgba(180,220,120,${fl*0.15})`;ctx.fillRect(wx+5,wallY+11,16,12);
+    ctx.fillStyle='#0c1e10';ctx.fillRect(wx+12,wallY+10,1,14);ctx.fillRect(wx+4,wallY+16,18,1);
+    // Second row
+    ctx.fillStyle='#0a1a0e';ctx.fillRect(wx+4,wallY+32,18,14);
+    ctx.fillStyle=`rgba(180,220,120,${fl*0.12})`;ctx.fillRect(wx+5,wallY+33,16,12);
+    ctx.fillStyle='#0c1e10';ctx.fillRect(wx+12,wallY+32,1,14);ctx.fillRect(wx+4,wallY+38,18,1);
+  }
+  // Repeating entrance doors every 200px
+  for(const dx of _tilePositions(200,px2,40)){
+    const dX=dx+90;ctx.fillStyle='#1a4a28';ctx.fillRect(dX,wallY+wallH-30,24,30);
+    ctx.fillStyle='#2a6a38';ctx.fillRect(dX+2,wallY+wallH-28,20,26);
+    ctx.fillStyle='rgba(180,220,120,0.2)';ctx.fillRect(dX+6,wallY+wallH-26,12,10);
+    ctx.fillStyle='#88cc66';ctx.fillRect(dX+17,wallY+wallH-14,3,3);
+    // Awning above door
+    ctx.fillStyle='#1a3a22';ctx.fillRect(dX-4,wallY+wallH-34,32,4);
+  }
+  // NEAR: Sidewalk (continuous)
+  ctx.fillStyle='#0a1a0c';ctx.fillRect(0,wallY+wallH,W,8);ctx.fillStyle='#0d200f';ctx.fillRect(0,wallY+wallH,W,2);
+  // NEAR: Bushes & landscaping
+  ctx.fillStyle='#0a2008';
+  for(const bx of _tilePositions(90,px3,30)){ctx.beginPath();ctx.arc(bx+20,wallY+wallH+14,12,Math.PI,0);ctx.fill();ctx.beginPath();ctx.arc(bx+45,wallY+wallH+14,16,Math.PI,0);ctx.fill();ctx.beginPath();ctx.arc(bx+70,wallY+wallH+14,10,Math.PI,0);ctx.fill()}
+  // NEAR: Parked cars
+  ctx.fillStyle='#081408';
+  for(const cx of _tilePositions(120,px3,50)){
+    ctx.fillRect(cx+10,H*0.72,40,14);ctx.fillRect(cx+14,H*0.715,32,6);
+    // Wheels
+    ctx.fillStyle='#050e04';ctx.beginPath();ctx.arc(cx+18,H*0.735,4,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(cx+42,H*0.735,4,0,Math.PI*2);ctx.fill();ctx.fillStyle='#081408';
+  }
+  // NEAR: Lamp posts
+  for(const lx of _tilePositions(150,px3,30)){
+    ctx.fillStyle='#0d1f0e';ctx.fillRect(lx+2,H*0.50,3,H*0.22);ctx.fillRect(lx-2,H*0.50,11,4);
+    // Warm light glow
+    ctx.fillStyle='rgba(180,220,120,0.04)';ctx.beginPath();ctx.arc(lx+4,H*0.51,20,0,Math.PI*2);ctx.fill();
+  }
+  _bgParticles(8,'rgba(140,200,100,0.10)',t,H*0.2,H*0.2);
+}
+
+// ========== LEVEL 1: ER LOBBY ==========
+function drawBG_ER(){
+  const t=Date.now()/1000,px1=cam.x*0.05,px2=cam.x*0.15,px3=cam.x*0.3;
+  // Night sky
+  const g=ctx.createLinearGradient(0,0,0,H*0.7);
+  g.addColorStop(0,'#060d14');g.addColorStop(0.4,'#0a1520');g.addColorStop(1,'#030810');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // FAR: City skyline silhouette
+  ctx.fillStyle='#0a1520';
+  for(const bx of _tilePositions(40,px1,30)){const bh=20+((Math.abs(Math.round(bx*7+3)))%5)*12;ctx.fillRect(bx,H*0.40-bh,28,bh+10)}
+  // MID: ER building facade — continuous
+  const wallY=H*0.24,wallH=H*0.40;
+  ctx.fillStyle='#0c1620';ctx.fillRect(0,wallY,W,wallH);
+  ctx.fillStyle='#142838';ctx.fillRect(0,wallY-4,W,6);ctx.fillStyle='#1a3848';ctx.fillRect(0,wallY-6,W,3);
+  // Repeating EMERGENCY signs every 240px
+  const pulse=0.7+Math.sin(t*3)*0.3;
+  for(const sx of _tilePositions(240,px2,120)){
+    const sW=120;ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(sx+60,wallY-26,sW,22);
+    ctx.strokeStyle=`rgba(255,60,60,${pulse})`;ctx.lineWidth=2;ctx.strokeRect(sx+60,wallY-26,sW,22);
+    ctx.fillStyle=`rgba(255,60,60,${pulse})`;ctx.fillRect(sx+68,wallY-22,3,14);ctx.fillRect(sx+64,wallY-17,11,3);
+    dT('EMERGENCY',sx+120,wallY-20,7,`rgba(255,100,100,${pulse})`,'center');
+  }
+  // Repeating windows
+  for(const wx of _tilePositions(30,px2,30)){
+    ctx.fillStyle='#081018';ctx.fillRect(wx+4,wallY+12,18,14);
+    const fl=0.6+Math.sin(t*1.2+wx*0.1)*0.15;
+    ctx.fillStyle=`rgba(100,200,255,${fl*0.15})`;ctx.fillRect(wx+5,wallY+13,16,12);
+    ctx.fillStyle='#0c1620';ctx.fillRect(wx+12,wallY+12,1,14);ctx.fillRect(wx+4,wallY+18,18,1);
+    ctx.fillStyle='#081018';ctx.fillRect(wx+4,wallY+34,18,14);
+    ctx.fillStyle=`rgba(100,200,255,${fl*0.12})`;ctx.fillRect(wx+5,wallY+35,16,12);
+    ctx.fillStyle='#0c1620';ctx.fillRect(wx+12,wallY+34,1,14);ctx.fillRect(wx+4,wallY+40,18,1);
+  }
+  // Repeating sliding doors every 200px
+  for(const dx of _tilePositions(200,px2,40)){
+    const dX=dx+88;ctx.fillStyle='#0a1828';ctx.fillRect(dX,wallY+wallH-32,36,32);
+    ctx.fillStyle='rgba(68,255,170,0.08)';ctx.fillRect(dX+2,wallY+wallH-30,15,28);ctx.fillRect(dX+19,wallY+wallH-30,15,28);
+    ctx.strokeStyle='#44ffaa44';ctx.lineWidth=1;ctx.strokeRect(dX,wallY+wallH-32,36,32);
+  }
+  // MID: Canopy/overhang (continuous)
+  ctx.fillStyle='#0e1a28';ctx.fillRect(0,wallY+wallH,W,4);
+  // NEAR: Ambulances repeating
+  for(const ax of _tilePositions(180,px3,60)){
+    ctx.fillStyle='#101e2e';ctx.fillRect(ax+10,H*0.68,40,16);ctx.fillRect(ax+8,H*0.695,44,8);
+    // Red cross
+    const ap=0.4+Math.sin(t*4+ax*0.01)*0.2;
+    ctx.fillStyle=`rgba(255,60,60,${ap})`;ctx.fillRect(ax+28,H*0.685,3,8);ctx.fillRect(ax+25,H*0.69,9,2);
+    // Flashing lights
+    if(Math.sin(t*6+ax)>0){ctx.fillStyle='rgba(255,40,40,0.3)';ctx.fillRect(ax+8,H*0.68,6,3)}
+    else{ctx.fillStyle='rgba(40,100,255,0.3)';ctx.fillRect(ax+8,H*0.68,6,3)}
+    // Wheels
+    ctx.fillStyle='#080e14';ctx.beginPath();ctx.arc(ax+16,H*0.705,3,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(ax+44,H*0.705,3,0,Math.PI*2);ctx.fill();
+  }
+  // NEAR: Gurneys
+  ctx.fillStyle='#081218';
+  for(const gx of _tilePositions(100,px3,40)){ctx.fillRect(gx+5,H*0.75,30,3);ctx.fillRect(gx+7,H*0.753,2,8);ctx.fillRect(gx+31,H*0.753,2,8);ctx.fillRect(gx+9,H*0.73,22,6)}
+  // Wet pavement reflections
+  for(const rx of _tilePositions(60,px3,20)){
+    ctx.fillStyle=`rgba(255,60,60,${0.02+Math.sin(t*2+rx*0.05)*0.01})`;ctx.fillRect(rx,H*0.78,40,1)}
+  _bgParticles(6,'rgba(68,255,170,0.08)',t,H*0.15,H*0.3);
+}
+
+// ========== LEVEL 2: SURGICAL WARD ==========
+function drawBG_Surgical(){
+  const t=Date.now()/1000,px1=cam.x*0.05,px2=cam.x*0.15,px3=cam.x*0.3;
+  // Cool sterile blue gradient
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#080e16');g.addColorStop(0.4,'#0c1824');g.addColorStop(1,'#060c14');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // Corridor walls (continuous)
+  const wallY=H*0.15,wallH=H*0.55;
+  ctx.fillStyle='#0e1a28';ctx.fillRect(0,wallY,W,wallH);
+  // Continuous tile lines on wall
+  ctx.fillStyle='#142838';ctx.fillRect(0,wallY,W,2);ctx.fillRect(0,wallY+wallH*0.5,W,2);ctx.fillRect(0,wallY+wallH-2,W,2);
+  // Continuous baseboard
+  ctx.fillStyle='#1a2838';ctx.fillRect(0,wallY+wallH-6,W,6);
+  // FAR: OR disc lamps on ceiling rail (continuous rail)
+  ctx.fillStyle='#142028';ctx.fillRect(0,wallY+3,W,2);
+  for(const lx of _tilePositions(100,px1*4,60)){
+    ctx.fillStyle='#1a2838';ctx.fillRect(lx+12,wallY-10,3,15);
+    ctx.fillStyle='#1a3040';ctx.fillRect(lx,wallY+4,28,6);
+    const glowA=0.04+Math.sin(t*0.8+lx*0.01)*0.02;
+    ctx.fillStyle=`rgba(100,180,255,${glowA})`;
+    ctx.beginPath();ctx.moveTo(lx+4,wallY+10);ctx.lineTo(lx-10,wallY+wallH*0.7);ctx.lineTo(lx+38,wallY+wallH*0.7);ctx.lineTo(lx+24,wallY+10);ctx.fill();
+  }
+  // MID: OR doors numbered sequentially
+  let doorNum=1;
+  for(const dx of _tilePositions(110,px2,40)){
+    ctx.fillStyle='#0c1a26';ctx.fillRect(dx+10,wallY+14,30,wallH-24);
+    ctx.fillStyle='#10202e';ctx.fillRect(dx+12,wallY+16,26,wallH-28);
+    // Door window
+    ctx.fillStyle=`rgba(100,180,255,${0.06+Math.sin(t+dx*0.02)*0.03})`;ctx.fillRect(dx+16,wallY+20,18,10);
+    // OR number
+    dT('OR-'+doorNum,dx+25,wallY+36,5,'#4488cc44','center');
+    ctx.fillStyle='#4488cc22';ctx.fillRect(dx+34,wallY+wallH*0.4,3,3);
+    doorNum++;if(doorNum>8)doorNum=1;
+  }
+  // MID: Scrub dispensers between doors
+  for(const sx of _tilePositions(110,px2,30)){
+    ctx.fillStyle='#10202e';ctx.fillRect(sx+55,wallY+wallH*0.3,10,16);ctx.fillRect(sx+56,wallY+wallH*0.3+2,8,4);
+    ctx.fillStyle='#4488cc11';ctx.fillRect(sx+57,wallY+wallH*0.3+7,6,8);
+  }
+  // MID: Blue curtain dividers
+  for(const cx of _tilePositions(80,px2,20)){
+    ctx.fillStyle='#10202e';ctx.fillRect(cx+72,wallY+6,2,6);
+    for(let j=0;j<8;j++){ctx.fillStyle=j%2===0?'#0c1a26':'#0e1e2c';ctx.fillRect(cx+66+j*2,wallY+12,2,wallH*0.6)}
+  }
+  // NEAR: Instrument trays
+  ctx.fillStyle='#0a1620';
+  for(const tx of _tilePositions(90,px3,30)){ctx.fillRect(tx+5,H*0.65,24,3);ctx.fillRect(tx+7,H*0.63,20,4);ctx.fillRect(tx+13,H*0.653,2,8);ctx.fillRect(tx+19,H*0.653,2,8)}
+  // NEAR: Hand wash stations
+  for(const hx of _tilePositions(180,px3,40)){
+    ctx.fillStyle='#0c1824';ctx.fillRect(hx+80,H*0.62,20,12);ctx.fillRect(hx+82,H*0.60,16,4);
+    ctx.fillStyle='#4488cc08';ctx.fillRect(hx+84,H*0.625,12,6);
+  }
+  // Polished floor reflection (continuous)
+  ctx.fillStyle='rgba(100,180,255,0.02)';ctx.fillRect(0,wallY+wallH,W,H*0.15);
+  _bgParticles(5,'rgba(100,180,255,0.08)',t,H*0.2,H*0.2);
+}
+
+// ========== LEVEL 3: MEDICINE FLOOR ==========
+function drawBG_Medicine(){
+  const t=Date.now()/1000,px1=cam.x*0.05,px2=cam.x*0.15,px3=cam.x*0.3;
+  // Purple-tinged corridor
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0e0a16');g.addColorStop(0.4,'#141020');g.addColorStop(1,'#0a0814');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // Corridor walls (continuous)
+  const wallY=H*0.18,wallH=H*0.50;
+  ctx.fillStyle='#12102a';ctx.fillRect(0,wallY,W,wallH);
+  ctx.fillStyle='#1a1838';ctx.fillRect(0,wallY,W,2);ctx.fillRect(0,wallY+wallH-2,W,2);
+  // Continuous handrail
+  ctx.fillStyle='#201840';ctx.fillRect(0,wallY+wallH*0.65,W,3);
+  // FAR: Fluorescent ceiling panels (continuous rail)
+  ctx.fillStyle='#1a1838';ctx.fillRect(0,wallY+3,W,2);
+  for(const fx of _tilePositions(70,px1*3,40)){
+    ctx.fillStyle=`rgba(180,140,220,${0.03+Math.sin(t*0.5+fx*0.01)*0.01})`;ctx.fillRect(fx+5,wallY+5,30,wallH*0.15);
+  }
+  // MID: Patient room doors (some open, some closed)
+  let roomNum=201;
+  for(const dx of _tilePositions(70,px2,30)){
+    const isOpen=(Math.abs(Math.round(dx*3))%5)===0;
+    ctx.fillStyle='#1a1430';ctx.fillRect(dx+8,wallY+12,22,wallH-20);
+    ctx.fillStyle=isOpen?'#141020':'#201840';ctx.fillRect(dx+10,wallY+14,18,wallH-24);
+    dT(''+roomNum,dx+19,wallY+18,5,'#bb77ee44','center');
+    ctx.fillStyle=`rgba(180,140,220,${isOpen?0.08:0.04+Math.sin(t+dx*0.02)*0.02})`;ctx.fillRect(dx+13,wallY+20,12,8);
+    ctx.fillStyle='#bb77ee22';ctx.fillRect(dx+24,wallY+32,3,3);
+    // Light spilling from open doors
+    if(isOpen){ctx.fillStyle='rgba(180,140,220,0.03)';ctx.fillRect(dx+8,wallY+wallH-8,22,8)}
+    roomNum++;if(roomNum>220)roomNum=201;
+  }
+  // MID: Hand sanitizer dispensers between some doors
+  for(const hx of _tilePositions(140,px2,20)){
+    ctx.fillStyle='#1a1838';ctx.fillRect(hx+52,wallY+wallH*0.35,8,14);
+    ctx.fillStyle='#bb77ee11';ctx.fillRect(hx+53,wallY+wallH*0.35+5,6,8);
+  }
+  // MID: Whiteboards repeating
+  for(const wx of _tilePositions(210,px2,50)){
+    ctx.fillStyle='#1a1838';ctx.fillRect(wx+130,wallY+8,40,28);ctx.strokeStyle='#bb77ee33';ctx.lineWidth=1;ctx.strokeRect(wx+130,wallY+8,40,28);
+    for(let r=0;r<4;r++){ctx.fillStyle='#bb77ee11';ctx.fillRect(wx+134,wallY+13+r*6,32,1)}
+  }
+  // NEAR: IV poles
+  ctx.fillStyle='#120e20';
+  for(const ix of _tilePositions(85,px3,20)){
+    ctx.fillRect(ix+5,H*0.50,2,H*0.16);ctx.fillRect(ix+1,H*0.50,10,2);
+    ctx.fillStyle='rgba(180,140,220,0.08)';ctx.fillRect(ix+3,H*0.46,6,8);ctx.fillStyle='#120e20';
+  }
+  // NEAR: Medication carts
+  for(const mx of _tilePositions(160,px3,30)){
+    ctx.fillStyle='#14102a';ctx.fillRect(mx+60,H*0.62,22,18);ctx.fillRect(mx+62,H*0.60,18,4);
+    ctx.fillStyle='#bb77ee08';ctx.fillRect(mx+63,H*0.625,16,4);ctx.fillRect(mx+63,H*0.65,16,4);
+    // Wheels
+    ctx.fillStyle='#0a0814';ctx.beginPath();ctx.arc(mx+64,H*0.645,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(mx+78,H*0.645,2,0,Math.PI*2);ctx.fill();
+  }
+  _bgParticles(6,'rgba(180,120,240,0.08)',t,H*0.15,H*0.25);
+}
+
+// ========== LEVEL 4: MRSA WARD ==========
+function drawBG_MRSA(){
+  const t=Date.now()/1000,px1=cam.x*0.05,px2=cam.x*0.15,px3=cam.x*0.3;
+  // Ominous red gradient
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#180808');g.addColorStop(0.3,'#1e0c0c');g.addColorStop(1,'#100606');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // Isolation corridor (continuous)
+  const wallY=H*0.16,wallH=H*0.52;
+  ctx.fillStyle='#1e0e0e';ctx.fillRect(0,wallY,W,wallH);
+  // Continuous warning stripes top and bottom
+  for(const sx of _tilePositions(30,px1*2,30)){
+    ctx.fillStyle=(Math.round(sx/15)%2===0)?'#2a1010':'#1e0e0e';ctx.fillRect(sx,wallY,15,4);ctx.fillRect(sx,wallY+wallH-4,15,4)}
+  // Continuous caution floor tape
+  ctx.fillStyle='#332200';ctx.fillRect(0,wallY+wallH,W,3);
+  for(const sx of _tilePositions(20,px3,20)){
+    ctx.fillStyle=(Math.round(sx/10)%2===0)?'#443300':'#332200';ctx.fillRect(sx,wallY+wallH,10,3)}
+  // FAR: Flashing alarm lights on ceiling
+  for(const ax of _tilePositions(120,px1*3,30)){
+    const on=Math.sin(t*4+ax*0.02)>0;
+    if(on){ctx.fillStyle='rgba(255,40,40,0.12)';ctx.beginPath();ctx.arc(ax+10,wallY-6,14,0,Math.PI*2);ctx.fill()}
+    ctx.fillStyle=on?'#ff4444':'#441111';ctx.beginPath();ctx.arc(ax+10,wallY-6,3,0,Math.PI*2);ctx.fill();
+  }
+  // MID: Isolation doors with yellow CONTACT PRECAUTIONS signs
+  for(const dx of _tilePositions(90,px2,40)){
+    ctx.fillStyle='#2a1414';ctx.fillRect(dx+10,wallY+10,26,wallH-16);
+    ctx.strokeStyle=`rgba(255,68,102,${0.3+Math.sin(t*2+dx*0.02)*0.15})`;ctx.lineWidth=1.5;ctx.strokeRect(dx+10,wallY+10,26,wallH-16);
+    // Biohazard symbol
+    const bx=dx+23,by=wallY+28;
+    ctx.fillStyle=`rgba(255,68,102,${0.25+Math.sin(t*2+dx*0.01)*0.1})`;
+    for(let a=0;a<3;a++){const ang=a*2.094+t*0.3;ctx.beginPath();ctx.arc(bx+Math.cos(ang)*5,by+Math.sin(ang)*5,4,0,Math.PI*2);ctx.fill()}
+    ctx.fillStyle='#2a1414';ctx.beginPath();ctx.arc(bx,by,3,0,Math.PI*2);ctx.fill();
+    // Yellow precaution sign next to door
+    ctx.fillStyle='rgba(200,180,0,0.12)';ctx.fillRect(dx+40,wallY+14,16,20);
+    ctx.strokeStyle='rgba(200,180,0,0.2)';ctx.lineWidth=1;ctx.strokeRect(dx+40,wallY+14,16,20);
+    dT('⚠',dx+48,wallY+18,6,'rgba(200,180,0,0.3)','center');
+    dT('ISOLATION',dx+23,wallY+wallH-12,4,'#ff446644','center');
+  }
+  // MID: PPE carts outside rooms
+  for(const px of _tilePositions(90,px2,20)){
+    ctx.fillStyle='#221010';ctx.fillRect(px+60,wallY+wallH*0.5,14,18);
+    // Glove box
+    ctx.fillStyle='rgba(100,100,255,0.06)';ctx.fillRect(px+61,wallY+wallH*0.5+2,12,5);
+    // Gown
+    ctx.fillStyle='rgba(255,255,100,0.04)';ctx.fillRect(px+61,wallY+wallH*0.5+8,12,5);
+  }
+  // NEAR: Gown/PPE rack silhouettes
+  ctx.fillStyle='#1a0a0a';
+  for(const rx of _tilePositions(95,px3,20)){
+    ctx.fillRect(rx+5,H*0.60,2,H*0.08);ctx.fillRect(rx-1,H*0.60,14,2);
+    ctx.fillRect(rx+1,H*0.61,4,12);ctx.fillRect(rx+7,H*0.61,4,14);
+  }
+  _bgParticles(5,'rgba(255,80,80,0.06)',t,H*0.2,H*0.2);
+}
+
+// ========== LEVEL 5: ICU ==========
+function drawBG_ICU(){
+  const t=Date.now()/1000,px1=cam.x*0.05,px2=cam.x*0.15,px3=cam.x*0.3;
+  // Dark blue-orange critical atmosphere
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#080c14');g.addColorStop(0.3,'#0c1420');g.addColorStop(1,'#060a10');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // ICU bay structure (continuous)
+  const wallY=H*0.14,wallH=H*0.56;
+  ctx.fillStyle='#0c1520';ctx.fillRect(0,wallY,W,wallH);
+  ctx.fillStyle='#142028';ctx.fillRect(0,wallY,W,3);
+  // Continuous ceiling equipment rail
+  ctx.fillStyle='#182030';ctx.fillRect(0,wallY+3,W,2);
+  // FAR: Central monitoring screens on back wall
+  for(const mx of _tilePositions(160,px1*3,60)){
+    ctx.fillStyle='#0a1418';ctx.fillRect(mx+60,wallY+8,40,20);
+    ctx.strokeStyle='#ff884418';ctx.lineWidth=1;ctx.strokeRect(mx+60,wallY+8,40,20);
+    // Multiple waveforms on central monitor
+    for(let ch=0;ch<3;ch++){
+      ctx.strokeStyle=`rgba(255,136,68,${0.15+ch*0.05})`;ctx.lineWidth=0.5;ctx.beginPath();
+      for(let w=0;w<36;w++){const wy=wallY+13+ch*6+Math.sin(t*5+w*0.6+ch*2+mx*0.01)*2;if(w===0)ctx.moveTo(mx+62+w,wy);else ctx.lineTo(mx+62+w,wy)}ctx.stroke();
+    }
+  }
+  // MID: Patient bays with glass partitions, beds, monitors
+  for(const bx of _tilePositions(100,px2,60)){
+    // Glass partition
+    ctx.fillStyle='rgba(100,180,255,0.03)';ctx.fillRect(bx+2,wallY+6,3,wallH-10);
+    ctx.strokeStyle='rgba(100,180,255,0.06)';ctx.lineWidth=0.5;ctx.strokeRect(bx+2,wallY+6,3,wallH-10);
+    // Bed
+    ctx.fillStyle='#101e28';ctx.fillRect(bx+12,wallY+wallH-22,50,8);
+    ctx.fillRect(bx+14,wallY+wallH-14,2,14);ctx.fillRect(bx+58,wallY+wallH-14,2,14);
+    // Headboard
+    ctx.fillStyle='#142838';ctx.fillRect(bx+12,wallY+wallH-36,6,18);
+    // Monitor on pole
+    ctx.fillStyle='#0a1620';ctx.fillRect(bx+64,wallY+12,2,wallH-32);
+    ctx.fillStyle='#0a1418';ctx.fillRect(bx+56,wallY+14,16,12);
+    ctx.strokeStyle='#ff884422';ctx.lineWidth=1;ctx.strokeRect(bx+56,wallY+14,16,12);
+    // Waveform
+    ctx.strokeStyle=`rgba(255,136,68,${0.3+Math.sin(t*3+bx*0.01)*0.15})`;ctx.lineWidth=1;ctx.beginPath();
+    for(let w=0;w<14;w++){const wy=wallY+20+Math.sin(t*6+w*0.8+bx*0.03)*3;if(w===0)ctx.moveTo(bx+57+w,wy);else ctx.lineTo(bx+57+w,wy)}ctx.stroke();
+    // IV pole with stacked pumps ("IV Christmas tree")
+    ctx.fillStyle='#0c1520';ctx.fillRect(bx+74,wallY+16,2,wallH-36);
+    for(let p=0;p<3;p++){ctx.fillStyle='#101e28';ctx.fillRect(bx+70,wallY+20+p*12,10,8);ctx.fillStyle=`rgba(255,136,68,${0.05})`;ctx.fillRect(bx+71,wallY+22+p*12,8,4)}
+    // IV line to bed
+    ctx.strokeStyle='#ff884410';ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(bx+75,wallY+56);ctx.lineTo(bx+50,wallY+wallH-30);ctx.stroke();
+  }
+  // NEAR: Ventilator silhouettes
+  ctx.fillStyle='#0a1218';
+  for(const vx of _tilePositions(110,px3,30)){
+    ctx.fillRect(vx+5,H*0.58,16,22);ctx.fillRect(vx+7,H*0.55,12,6);
+    ctx.strokeStyle='#ff884410';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(vx+13,H*0.55);ctx.quadraticCurveTo(vx+30,H*0.51,vx+40,H*0.58);ctx.stroke();
+  }
+  // Ceiling track lights
+  for(const lx of _tilePositions(80,px1*4,20)){
+    ctx.fillStyle='#142028';ctx.fillRect(lx+5,wallY+5,30,3);
+    ctx.fillStyle=`rgba(255,136,68,${0.02+Math.sin(t*0.5+lx*0.01)*0.01})`;ctx.fillRect(lx+7,wallY+8,26,wallH*0.25);
+  }
+  _bgParticles(6,'rgba(255,140,80,0.06)',t,H*0.15,H*0.25);
+}
+
+// ========== LEVEL 6: ATYPICAL CLINIC ==========
+function drawBG_Atypical(){
+  const t=Date.now()/1000,px1=cam.x*0.05,px2=cam.x*0.15,px3=cam.x*0.3;
+  // Mysterious teal-green
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#061210');g.addColorStop(0.4,'#0a1e1a');g.addColorStop(1,'#040e0c');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // Lab interior (continuous)
+  const wallY=H*0.18,wallH=H*0.50;
+  ctx.fillStyle='#0a1e18';ctx.fillRect(0,wallY,W,wallH);
+  ctx.fillStyle='#10302a';ctx.fillRect(0,wallY,W,2);ctx.fillRect(0,wallY+wallH-2,W,2);
+  // Continuous upper shelf
+  ctx.fillStyle='#0c2420';ctx.fillRect(0,wallY+8,W,3);
+  // FAR: Floating cell-wall-less shapes (the "atypical" theme — no rigid cell walls)
+  ctx.strokeStyle='rgba(85,221,187,0.08)';ctx.lineWidth=1;
+  for(let i=0;i<12;i++){
+    const fx=(i*110+t*12)%W;const fy=wallY+15+(Math.sin(t*0.4+i*1.7)*wallH*0.3);
+    const sz=6+Math.sin(t+i*0.9)*3;
+    ctx.beginPath();
+    for(let a=0;a<7;a++){const ang=a*0.9;const r=sz+Math.sin(t*2+i+a*1.3)*2;
+      if(a===0)ctx.moveTo(fx+Math.cos(ang)*r,fy+Math.sin(ang)*r);
+      else ctx.lineTo(fx+Math.cos(ang)*r,fy+Math.sin(ang)*r)}
+    ctx.closePath();ctx.stroke();
+  }
+  // MID: Lab benches with microscopes
+  for(const mx of _tilePositions(100,px2,40)){
+    // Bench
+    ctx.fillStyle='#0c2420';ctx.fillRect(mx+5,wallY+wallH-16,50,4);
+    ctx.fillRect(mx+7,wallY+wallH-12,2,12);ctx.fillRect(mx+51,wallY+wallH-12,2,12);
+    // Microscope
+    ctx.fillStyle='#10302a';
+    ctx.fillRect(mx+22,wallY+wallH-34,8,18);
+    ctx.fillRect(mx+18,wallY+wallH-20,16,4);
+    ctx.fillRect(mx+24,wallY+wallH-42,4,10);
+    ctx.fillRect(mx+21,wallY+wallH-44,10,3);
+  }
+  // MID: Culture incubators
+  for(const ix of _tilePositions(200,px2,40)){
+    ctx.fillStyle='#0c2a22';ctx.fillRect(ix+120,wallY+wallH*0.3,24,wallH*0.5);
+    ctx.strokeStyle='#44bbaa18';ctx.lineWidth=1;ctx.strokeRect(ix+120,wallY+wallH*0.3,24,wallH*0.5);
+    // Glass door
+    ctx.fillStyle='rgba(85,221,187,0.04)';ctx.fillRect(ix+122,wallY+wallH*0.32,20,wallH*0.45);
+    // Shelves inside
+    for(let s=0;s<3;s++){ctx.fillStyle='#10302a';ctx.fillRect(ix+122,wallY+wallH*(0.38+s*0.12),20,1)}
+    // Temperature readout
+    ctx.fillStyle=`rgba(85,221,187,${0.15+Math.sin(t*2)*0.05})`;
+    dT('37°C',ix+132,wallY+wallH*0.3-4,4,'rgba(85,221,187,0.3)','center');
+  }
+  // MID: Petri dishes on benches
+  ctx.strokeStyle='rgba(85,221,187,0.06)';
+  for(const dx of _tilePositions(100,px2,20)){
+    ctx.beginPath();ctx.ellipse(dx+65,wallY+wallH-20,14,5,0,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='rgba(85,221,187,0.04)';
+    for(let c=0;c<3;c++){ctx.beginPath();ctx.arc(dx+60+c*6,wallY+wallH-20+Math.sin(c)*2,2,0,Math.PI*2);ctx.fill()}
+  }
+  // MID: "No Cell Wall Zone" poster repeating
+  for(const px of _tilePositions(300,px2,60)){
+    ctx.fillStyle='rgba(10,30,24,0.8)';ctx.fillRect(px+5,wallY+12,44,24);
+    ctx.strokeStyle='#44bbaa22';ctx.lineWidth=1;ctx.strokeRect(px+5,wallY+12,44,24);
+    dT('NO CELL',px+27,wallY+17,4,'#44bbaa33','center');
+    dT('WALL ZONE',px+27,wallY+25,4,'#44bbaa33','center');
+  }
+  // NEAR: Test tube racks
+  ctx.fillStyle='#0c2420';
+  for(const tx of _tilePositions(50,px3,10)){
+    ctx.fillRect(tx+5,H*0.55,4,14);
+    ctx.fillStyle=`rgba(85,221,187,${0.06+Math.sin(t+tx*0.04)*0.03})`;ctx.fillRect(tx+6,H*0.58,2,8);ctx.fillStyle='#0c2420';
+  }
+  // NEAR: Gram stain slide projections (subtle)
+  for(const gx of _tilePositions(200,px3,40)){
+    // Pink cocci
+    ctx.fillStyle='rgba(220,100,150,0.04)';
+    for(let c=0;c<4;c++){ctx.beginPath();ctx.arc(gx+100+c*5+Math.sin(c)*3,H*0.62+Math.cos(c*2)*3,3,0,Math.PI*2);ctx.fill()}
+    // Purple rods
+    ctx.fillStyle='rgba(140,80,200,0.04)';
+    for(let r=0;r<3;r++){ctx.fillRect(gx+120+r*6,H*0.62+Math.sin(r)*4,3,8)}
+  }
+  _bgParticles(8,'rgba(85,221,187,0.08)',t,H*0.2,H*0.25);
 }
 
 function renderPlatformer(){
@@ -1262,9 +1717,10 @@ function renderTeachingCard(){
   const er=S.empiricResult,ec=er.result==='best'?'#44ffaa':er.result==='accept'?'#ffdd44':'#ff4444';
   y+=dT('Empiric: '+S.selectedEmpiric.names.join(' + ')+' → '+er.result.toUpperCase(),lx,y,fs,ec,'left',mw);y+=isMobile?8:14;
   if(bd.narrowResult){const nr=bd.narrowResult,nc=nr.matchup==='super'?'#44ffaa':nr.matchup==='partial'?'#ffdd44':'#ff4444';y+=dT('Narrow: '+nr.chosen.name+' → '+nr.matchup.toUpperCase(),lx,y,fs,nc,'left',mw);y+=isMobile?8:14}
+  else if(S.level===0){y+=dT('🏥 Outpatient — no cultures sent. Empiric therapy is definitive!',lx,y,isMobile?8:10,'#88cc44','left',mw);y+=isMobile?8:14}
   dR(lx,y,mw,2,'#ffffff22');y+=6;dT('Empiric Reasoning:',lx,y,fs,'#ffdd44');y+=isMobile?14:22;
   for(const[k,txt] of Object.entries(sc.empiricExplain)){if(y>cy+ch-(isMobile?60:100))break;const n=ABX[k]?ABX[k].name:k;const iB=sc.bestSingle.includes(k)||(sc.bestCombo&&COMBOS[sc.bestCombo]&&COMBOS[sc.bestCombo].drugs.includes(k));const iA=sc.acceptSingle.includes(k);const ic=iB?'#44ffaa':iA?'#ffdd44':'#ff6688';y+=dT((iB?'✅ ':iA?'⚠️ ':'❌ ')+n+': '+txt,lx+4,y,isMobile?8:11,ic,'left',mw-8);y+=isMobile?3:6}
-  if(sc.narrowExplain&&y<cy+ch-(isMobile?45:80)){dR(lx,y,mw,2,'#ffffff22');y+=6;dT('Narrow Reasoning:',lx,y,fs,'#66bbff');y+=isMobile?12:20;y+=dT('🔬 '+sc.narrowExplain,lx+4,y,isMobile?8:11,'#66bbff','left',mw-8);y+=6}
+  if(S.level!==0&&sc.narrowExplain&&y<cy+ch-(isMobile?45:80)){dR(lx,y,mw,2,'#ffffff22');y+=6;dT('Narrow Reasoning:',lx,y,fs,'#66bbff');y+=isMobile?12:20;y+=dT('🔬 '+sc.narrowExplain,lx+4,y,isMobile?8:11,'#66bbff','left',mw-8);y+=6}
   if(y<cy+ch-(isMobile?30:50)){dR(lx,y,mw,isMobile?24:30,'#ffdd4422');dT('💡 '+bug.pearl,lx+6,y+4,isMobile?8:11,'#ffdd44','left',mw-12);y+=isMobile?26:34}
   const btnX=W/2-80,btnY=H-(isMobile?42:60);dR(btnX,btnY,160,38,'#1a3a2a');dR(btnX,btnY,160,2,'#44ffaa');dR(btnX,btnY+36,160,2,'#44ffaa');dT('CONTINUE ►',W/2,btnY+10,isMobile?11:13,'#44ffaa','center');
 }
@@ -1276,8 +1732,8 @@ function renderTitle(){
   const now=Date.now();if(now-_lbLastFetch>30000){_lbLastFetch=now;loadLeaderboard()}
   ctx.fillStyle='#0a0a1a';ctx.fillRect(0,0,W,H);const t=Date.now()/1000;
   const nb=isMobile?5:8;for(let i=0;i<nb;i++){const bks=Object.keys(BUGS);drawBug(W*0.1+i*W/(nb+1),H*0.10+Math.sin(t+i*0.7)*20,bks[i%bks.length],t+i,isMobile?0.8:1)}
-  const ty=isMobile?H*0.20:H*0.26;ctx.shadowColor='#44ffaa';ctx.shadowBlur=20;dT('BUGWARS',W/2,ty,Math.min(32,W*0.06),'#44ffaa','center');ctx.shadowBlur=0;
-  dT('SIDE SCROLL',W/2,ty+34,Math.min(14,W*0.03),'#ff8844','center');dT('An Antibiotic Education Platformer',W/2,ty+56,isMobile?6:8,'#888','center');
+  const ty=isMobile?H*0.18:H*0.22;ctx.shadowColor='#44ffaa';ctx.shadowBlur=20;dT('BUGWARS',W/2,ty,Math.min(44,W*0.08),'#44ffaa','center');ctx.shadowBlur=0;
+  dT('SIDE SCROLL',W/2,ty+44,Math.min(20,W*0.04),'#ff8844','center');dT('An Antibiotic Education Platformer',W/2,ty+72,isMobile?8:11,'#888','center');
   const bW=isMobile?170:200,bH=isMobile?30:34,bx=W/2-bW/2,sy=isMobile?H*0.43:H*0.47;
   [['START GAME','#44ffaa'],['LEVEL SELECT','#ff8844'],['STUDY MODE','#ffaa44'],['CODEX','#bb77ee'],['HOW TO PLAY','#66bbff']].forEach(([label,c],i)=>{const by=sy+i*(bH+7);const hov=hoverX>bx&&hoverX<bx+bW&&hoverY>by&&hoverY<by+bH;dR(bx,by,bW,bH,hov?c+'22':'#1a1a3a');dR(bx,by,bW,hov?3:2,c);dR(bx,by+bH-(hov?3:2),bW,hov?3:2,c);dR(bx,by,hov?3:2,bH,c);dR(bx+bW-(hov?3:2),by,hov?3:2,bH,c);dT(label,W/2,by+8,isMobile?8:9,hov?'#fff':c,'center')});
   const menuBottom=sy+5*(bH+7);
